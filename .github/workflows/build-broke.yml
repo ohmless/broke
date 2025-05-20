@@ -1,22 +1,26 @@
 # .github/workflows/build-broke.yml
-name: Build Broke IPA (ad-hoc signed)
+# Erstellt eine unsignierte Broke-IPA, signiert sie ad-hoc mit Entitlements
+# und prüft im Debug-Step direkt, welche Entitlements im .app-Binary stecken.
+
+name: Build Broke IPA (ad-hoc signed + debug)
 
 on:
-  workflow_dispatch: {}          # manueller Start
+  workflow_dispatch: {}  # Manueller Trigger im Actions-Tab
 
 jobs:
   build:
-    runs-on: macos-14            # Xcode-Runner
+    runs-on: macos-14    # GitHub-Runner mit Xcode 15.x
 
     steps:
-    # ---------------------------------------------------------------------
+    # 1) Quellcode einchecken
     - name: Checkout source
       uses: actions/checkout@v4
 
+    # 2) Swift-Package-Dependencies auflösen (falls vorhanden)
     - name: Resolve SwiftPM dependencies
       run: xcodebuild -resolvePackageDependencies
 
-    # ---------------------------------------------------------------------
+    # 3) Archiv ohne Zertifikat bauen
     - name: Archive (unsigned)
       run: |
         xcodebuild \
@@ -30,15 +34,23 @@ jobs:
           ENABLE_BITCODE=NO \
           archive
 
-    # ---------------------------------------------------------------------
-    - name: Ad-hoc codesign
+    # 4) Ad-hoc-Signatur mit Entitlements
+    - name: Ad-hoc codesign with entitlements
       run: |
         APP="build/Broke.xcarchive/Products/Applications/Broke.app"
         /usr/bin/codesign --force --sign - \
           --entitlements Broke/Broke.entitlements \
           --timestamp=none "$APP"
 
-    # ---------------------------------------------------------------------
+    # 5) DEBUG: Entitlements im .app anzeigen
+    - name: Verify entitlements in .app
+      run: |
+        APP="build/Broke.xcarchive/Products/Applications/Broke.app"
+        echo "=== ENTITLEMENTS DUMP ==="
+        /usr/bin/codesign -d --entitlements :- "$APP"
+        echo "========================="
+
+    # 6) IPA packen
     - name: Package IPA
       run: |
         APP="build/Broke.xcarchive/Products/Applications/Broke.app"
@@ -46,8 +58,8 @@ jobs:
         cp -R "$APP" Payload/
         zip -qr Broke-unsigned.ipa Payload
 
-    # ---------------------------------------------------------------------
-    - name: Upload artefact
+    # 7) IPA als Artifact hochladen
+    - name: Upload IPA artefact
       uses: actions/upload-artifact@v4
       with:
         name: Broke
