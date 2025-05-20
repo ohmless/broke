@@ -1,18 +1,22 @@
+# .github/workflows/build-broke.yml
 name: Build Broke IPA (ad-hoc signed)
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch: {}          # manueller Start
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-14            # Xcode-Runner
+
     steps:
-    - name: Checkout
+    # ---------------------------------------------------------------------
+    - name: Checkout source
       uses: actions/checkout@v4
 
-    - name: Resolve SPM deps
+    - name: Resolve SwiftPM dependencies
       run: xcodebuild -resolvePackageDependencies
 
+    # ---------------------------------------------------------------------
     - name: Archive (unsigned)
       run: |
         xcodebuild \
@@ -26,6 +30,7 @@ jobs:
           ENABLE_BITCODE=NO \
           archive
 
+    # ---------------------------------------------------------------------
     - name: Ad-hoc codesign
       run: |
         APP="build/Broke.xcarchive/Products/Applications/Broke.app"
@@ -33,6 +38,17 @@ jobs:
           --entitlements Broke/Broke.entitlements \
           --timestamp=none "$APP"
 
-    - name: Package IPA  # <- Fix hier
+    # ---------------------------------------------------------------------
+    - name: Package IPA
       run: |
-        APP="
+        APP="build/Broke.xcarchive/Products/Applications/Broke.app"
+        mkdir -p Payload
+        cp -R "$APP" Payload/
+        zip -qr Broke-unsigned.ipa Payload
+
+    # ---------------------------------------------------------------------
+    - name: Upload artefact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Broke
+        path: Broke-unsigned.ipa
