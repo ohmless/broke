@@ -1,41 +1,47 @@
-# .github/workflows/build-broke.yml
-name: Build Broke IPA with ad-hoc entitlements
-on: { workflow_dispatch: {} }
+name: Build Broke IPA (ad-hoc signed)
+
+on:
+  workflow_dispatch: {}          # manueller Startknopf
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-14            # GitHub-Runner mit Xcode 15
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      - name: Build archive (UNsigniert, aber Codesign zulassen)
-        run: |
-          xcodebuild \
-            -scheme Broke \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
-            -archivePath $PWD/build/Broke.xcarchive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            archive
+    # 1) Archiv ohne Zertifikatszwang bauen
+    - name: Archive
+      run: |
+        xcodebuild \
+          -scheme Broke \
+          -configuration Release \
+          -destination 'generic/platform=iOS' \
+          -archivePath $PWD/build/Broke.xcarchive \
+          CODE_SIGN_STYLE=Manual \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          ENABLE_BITCODE=NO \
+          archive
 
-      - name: **Ad-hoc sign the .app with entitlements**
-        run: |
-          APP_PATH="build/Broke.xcarchive/Products/Applications/Broke.app"
-          /usr/bin/codesign --force --sign - \
-            --entitlements Broke/Broke.entitlements \
-            --timestamp=none "$APP_PATH"
+    # 2) Einmal ad-hoc signieren – ENTITLEMENTS WERDEN ÜBERNOMMEN!
+    - name: Ad-hoc codesign
+      run: |
+        APP="$PWD/build/Broke.xcarchive/Products/Applications/Broke.app"
+        /usr/bin/codesign --force --sign - \
+          --entitlements Broke/Broke.entitlements \
+          --timestamp=none "$APP"
 
-      - name: Package IPA
-        run: |
-          mkdir Payload
-          cp -R "$APP_PATH" Payload/
-          zip -r Broke-unsigned.ipa Payload
+    # 3) IPA verpacken
+    - name: Package IPA
+      run: |
+        mkdir Payload
+        cp -R "$APP" Payload/
+        zip -qr Broke-unsigned.ipa Payload
 
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: Broke
-          path: Broke-unsigned.ipa
+    - name: Upload artefact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Broke
+        path: Broke-unsigned.ipa
