@@ -1,26 +1,18 @@
-# .github/workflows/build-broke.yml
-# Erstellt eine unsignierte IPA von Broke, versieht sie ad-hoc mit Entitlements
-# und stellt sie als Artifact bereit. Funktioniert ohne Apple-Developer-Zertifikat.
-
 name: Build Broke IPA (ad-hoc signed)
 
 on:
-  workflow_dispatch: {}          # manueller Start per "Run workflow"
+  workflow_dispatch: {}
 
 jobs:
   build:
-    runs-on: macos-14            # GitHub-Runner mit Xcode 15
-
+    runs-on: macos-14
     steps:
-    # --- Quellcode holen ----------------------------------------------------
-    - name: Checkout source
+    - name: Checkout
       uses: actions/checkout@v4
 
-    # --- Swift-/SPM-Abhängigkeiten auflösen (optional, hilft gegen Package-Fehler)
-    - name: Resolve package dependencies
+    - name: Resolve SPM deps
       run: xcodebuild -resolvePackageDependencies
 
-    # --- Archiv ohne Zertifikat bauen ---------------------------------------
     - name: Archive (unsigned)
       run: |
         xcodebuild \
@@ -34,26 +26,13 @@ jobs:
           ENABLE_BITCODE=NO \
           archive
 
-    # --- Einmal ad-hoc signieren, damit Entitlements ins Binary gelangen ----
-    - name: Ad-hoc codesign with entitlements
+    - name: Ad-hoc codesign
       run: |
         APP="build/Broke.xcarchive/Products/Applications/Broke.app"
         /usr/bin/codesign --force --sign - \
           --entitlements Broke/Broke.entitlements \
           --timestamp=none "$APP"
 
-    # --- IPA verpacken -------------------------------------------------------
-    - name: Package IPA
+    - name: Package IPA  # <- Fix hier
       run: |
-        APP="build/Broke.xcarchive/Products/Applications/Broke.app"
-        mkdir -p Payload
-        cp -R "$APP" Payload/
-        cd Payload
-        zip -qr ../Broke-unsigned.ipa .
-
-    # --- Artifact hochladen --------------------------------------------------
-    - name: Upload IPA artefact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Broke
-        path: Broke-unsigned.ipa
+        APP="
